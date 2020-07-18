@@ -1,6 +1,6 @@
 # AUTOMATED CAT FOOD DISPENSER
 # AUTHOR: Joel Huffman
-# LAST UPDATED: 7/8/2020
+# LAST UPDATED: 7/18/2020
 # PURPOSE: Allow cats to dispense serve themselves dry food pellets by depressing a
 # push button. To prevent gourging. food will be dispensed in small quantites and only
 # if specific criteria are met.
@@ -12,9 +12,19 @@
 # remove a food token or dispense food
 
 
-from time import sleep
+from time import sleep, monotonic
 import board
 from digitalio import DigitalInOut, Pull, Direction
+from neopixel import NeoPixel
+
+# color rgb values
+OFF = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+# neopixels
+pixels = NeoPixel(board.NEOPIXEL, 10, brightness=0.2)
 
 # red LED
 led = DigitalInOut(board.D13)
@@ -33,20 +43,61 @@ button_feed.pull = Pull.UP
 motor = DigitalInOut(board.A2)
 motor.direction = Direction.OUTPUT
 
-food_tokens = 10
-food_tokens_max = 10
+# blink all neopixels red 3 times
+def errorBlink():
+    for i in range(3):
+        pixels.fill(RED)
+        pixels.show()
+        sleep(0.1)
+        pixels.fill(OFF)
+        pixels.show()
+        sleep(0.1)
 
 # runs motor for 'duration' (in seconds) then turns off motor
 def runMotor(duration):
-	motor.value = True
-	sleep(duration)
-	motor.value = False
+    motor.value = True
+    pixels.fill(BLUE)
+    pixels.show()
+    sleep(duration)
+    motor.value = False
+    pixels.fill(OFF)
+    pixels.show()
 
+# update number of food tokens with green LEDs
+def lightLeds():
+    for i in range(food_tokens_max):
+        if (i < food_tokens):
+            pixels[i] = GREEN
+        else:
+            pixels[i] = OFF
+    pixels.show()
+
+food_tokens = 10
+food_tokens_max = 10
+timer_5_min = 60
+initial = monotonic()
 
 while True:
+    now = monotonic() 
+
     if not button_feed.value:  # button is pushed
-        led.value = True
-        runMotor(2)
+        if food_tokens > 0:
+            food_tokens = food_tokens-1
+            led.value = True
+            runMotor(0.1)
+        else:
+            errorBlink()
+        print(food_tokens)
     else:
         led.value = False
+
+    if now - initial > timer_5_min:
+        if food_tokens < food_tokens_max:
+            food_tokens = food_tokens+1
+        initial = now
+        print(food_tokens)
+    
+    # update LEDs
+    lightLeds()
+
     sleep(0.01)
